@@ -35,6 +35,12 @@ Add to your MCP client (Claude Desktop, Cursor, Windsurf, Cline…):
 
 Or via Smithery: search **newsletterforge-mcp**.
 
+## 🔴 NEW in v1.1 — Live Tool: `audit_rss_feed_live`
+
+Fetches any RSS/Atom feed live (with autodiscovery) and audits the REAL publishing data: item count, actual cadence computed from real timestamps, freshness, and full-content vs excerpt detection.
+
+No API key needed — works out of the box.
+
 ## 💰 Pricing
 
 **Start free — 10 requests/day, no signup, no card.**

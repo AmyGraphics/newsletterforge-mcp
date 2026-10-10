@@ -75,7 +75,7 @@ export default {
         status: 'healthy',
         service: 'newsletterforge-mcp',
         version: '1.0.0',
-        tools_available: 5,
+        tools_available: 6,
         pricing: PRO_TIERS
       }), {
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
@@ -302,6 +302,36 @@ async function handleMcpRequest(request, env) {
               required: ['status', 'onboarding_system', 'retention_system', 'analytics_dashboard', 'ops_stack', 'operator_calibration']
             },
             annotations: { title: 'Retention, Analytics & Ops Builder', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+          },
+          {
+            name: 'audit_rss_feed_live',
+            title: 'Live RSS/Atom Feed Auditor',
+            description: 'Fetches any RSS/Atom feed (or site URL with autodiscovery) live and audits the REAL publishing data: item count, latest post date, actual publishing cadence computed from real timestamps, title quality, and full-content vs excerpt detection.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                feed_url: { type: 'string', description: 'Feed URL or site URL (autodiscovery attempted) e.g. https://blog.example.com/rss' }
+              },
+              required: ['feed_url']
+            },
+            outputSchema: {
+              type: 'object',
+              properties: {
+                status: { type: 'string', description: 'success or error' },
+                feed_health: { type: 'string', description: 'Feed validity, format and item count read live' },
+                publishing_cadence: { type: 'string', description: 'Real cadence computed from actual item timestamps' },
+                content_read: { type: 'string', description: 'Title lengths and full-content vs excerpt analysis' },
+                growth_priorities: { type: 'string', description: 'P1/P2/P3 newsletter growth fixes based on the real feed' },
+                data_source: { type: 'string', description: 'How the feed was fetched' }
+              },
+              required: ['status', 'feed_health', 'publishing_cadence', 'content_read', 'growth_priorities', 'data_source']
+            },
+            annotations: {
+              readOnlyHint: true,
+              destructiveHint: false,
+              idempotentHint: false,
+              openWorldHint: true
+            }
           }
         ]
       }
@@ -329,6 +359,10 @@ async function handleMcpRequest(request, env) {
           break;
         case 'build_retention_analytics_ops':
           result = buildOps(args);
+          break;
+        case 'audit_rss_feed_live':
+          if (!args || typeof args.feed_url !== 'string' || args.feed_url.length === 0) { return { jsonrpc: '2.0', id, error: { code: -32602, message: 'Missing required parameter: feed_url (string)' } }; }
+          result = await auditRssFeedLive(args);
           break;
         default:
           return {
@@ -481,5 +515,80 @@ function buildOps(args) {
     analytics_dashboard: 'THE ANALYTICS DASHBOARD THAT MATTERS: (1) THE OPEN-RATE HONESTY: privacy proxies (Apple MPP) inflate opens — treat open rate as a TREND instrument (direction over level) and triangulate with clicks, replies and web views; the operator quoting a precise open rate as truth is reading a broken speedometer confidently; (2) THE CLICK-QUALITY LAYER: not click count — click MAP: which sections earn clicks per reader, which links die unclicked (the section audit), and the click-to-depth signal (who clicks the dense stuff — the segment that buys); (3) THE COHORT RETENTION CURVE as the product metric: opens-per-reader at 30/60/90 days by join-month and by source — the single chart that says whether the product and the growth channels are actually working, and the one most operators never build; (4) THE REVENUE-PER-SUBSCRIBER LENS: total revenue / engaged subscribers, by engine — the number that disciplines both growth spend (CAC ceiling) and monetization sequencing (which engine is underbuilt), reviewed monthly in one page; (5) THE VANITY SET IGNORED ON PURPOSE: total list size (includes the dead), follower counts (not the list), single-send spikes (noise), and competitor subscriber claims (unaudited fiction) — the dashboard exists to change decisions, and every number on it should be attached to one.',
     ops_stack: 'THE OPERATIONS STACK & AUTOMATION DISCIPLINE: (1) THE MINIMAL STACK by stage: platform + landing page + one analytics view until 10k; add the scheduling tool, the referral layer and the link-checker as each earns its seat — the stack audit question is "which tool did I not open last month?", and the answer gets cancelled; (2) THE SEND-DAY RUNBOOK: the checklist (links clicked, mobile test-send read, subject/preview truncation check, personalization fields verified, sponsor block against insertion order, UTM tags present) executed every send — the broken-link apology email costs more trust than the checklist costs minutes, every time; (3) THE AUTOMATION LINE: automate logistics (welcome arcs, re-engagement triggers, digest assembly, sponsor-report data pulls) and never the relationship (replies answered by the human, the voice never delegated to a template, the "personal" note that is actually personal) — readers forgive typos and never forgive discovering the warmth was a macro; (4) THE BACKUP DISCIPLINE: the list exported monthly to owned storage, the archive mirrored off-platform, the sponsor contracts and rate history in one place — the platform is rented; the business is the list, the archive and the relationships, and all three should survive any single vendor; (5) THE CALENDAR INFRASTRUCTURE: the editorial calendar (themes, franchises, seasonal hooks), the revenue calendar (sponsor slots, launch windows, enrollment pushes) and the maintenance calendar (quarterly list clean, annual format audit) reconciled monthly — the newsletter business is a rhythm business, and the calendars ARE the operating system.',
     operator_calibration: operatorCalibration[operator]
+  };
+}
+
+async function auditRssFeedLive(args) {
+  var url = args.feed_url;
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  async function get(u) {
+    try {
+      var r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsletterForge-MCP/1.1)', 'Accept': 'application/rss+xml, application/atom+xml, application/xml, text/xml, text/html' }, redirect: 'follow' });
+      return { status: r.status, text: await r.text() };
+    } catch (e) { return null; }
+  }
+  var res = await get(url);
+  var body = res ? res.text : '';
+  var isFeed = /<rss[\s>]|<feed[\s>]/i.test(body);
+  var discovered = null;
+  if (res && !isFeed && /<html/i.test(body)) {
+    var dm = body.match(/<link[^>]+type=["']application\/(?:rss|atom)\+xml["'][^>]*href=["']([^"']+)["']/i) || body.match(/href=["']([^"']+)["'][^>]*type=["']application\/(?:rss|atom)\+xml["']/i);
+    if (dm) {
+      discovered = dm[1];
+      if (discovered.indexOf('http') !== 0) { try { discovered = new URL(discovered, url).href; } catch (e) {} }
+      var res2 = await get(discovered);
+      if (res2 && /<rss[\s>]|<feed[\s>]/i.test(res2.text)) { body = res2.text; isFeed = true; url = discovered; }
+    }
+  }
+  if (!res || !isFeed) {
+    return {
+      status: 'success',
+      feed_health: 'NO VALID FEED FOUND at ' + args.feed_url + (res ? ' (HTTP ' + res.status + ', content is not RSS/Atom' + (discovered ? '; autodiscovery pointed to ' + discovered + ' but that was not a valid feed either' : '; no autodiscovery link tag in the HTML') + ')' : ' (fetch failed - host unreachable or blocking)') + '.',
+      publishing_cadence: 'UNAVAILABLE - cadence is computed from real item timestamps, and no feed items were retrieved.',
+      content_read: 'UNAVAILABLE - no feed content to analyze.',
+      growth_priorities: 'P1: expose a working RSS feed - every newsletter platform (Substack, Beehiiv, Ghost, WordPress) ships one by default, find its URL (/feed, /rss, /atom.xml) | P2: add the autodiscovery link tag so tools and readers find it | P3: re-run this audit once the feed resolves.',
+      data_source: 'Live GET of ' + args.feed_url + ' with RSS/Atom autodiscovery attempted at request time. Real fetch - nothing simulated.'
+    };
+  }
+  var isAtom = /<feed[\s>]/i.test(body) && !/<rss[\s>]/i.test(body);
+  var itemRe = isAtom ? /<entry[\s>]/gi : /<item[\s>]/gi;
+  var items = (body.match(itemRe) || []).length;
+  var dateRe = isAtom ? /<(?:published|updated)>([^<]+)</gi : /<pubDate>([^<]+)</gi;
+  var dates = [];
+  var dm2;
+  while ((dm2 = dateRe.exec(body)) !== null && dates.length < 25) {
+    var d = new Date(dm2[1].trim());
+    if (!isNaN(d.getTime())) dates.push(d);
+  }
+  dates.sort(function(a, b) { return b - a; });
+  var latest = dates.length ? dates[0] : null;
+  var cadence = 'not computable (fewer than 2 dated items)';
+  if (dates.length >= 2) {
+    var spanDays = (dates[0] - dates[dates.length - 1]) / 86400000;
+    var avgGap = spanDays / (dates.length - 1);
+    cadence = avgGap < 1.5 ? 'roughly DAILY (avg ' + avgGap.toFixed(1) + ' days between posts)' : avgGap < 9 ? 'roughly WEEKLY (avg ' + avgGap.toFixed(1) + ' days between posts)' : avgGap < 35 ? 'roughly MONTHLY (avg ' + avgGap.toFixed(1) + ' days between posts)' : 'IRREGULAR/SLOW (avg ' + avgGap.toFixed(1) + ' days between posts)';
+  }
+  var daysSince = latest ? Math.round((Date.now() - latest.getTime()) / 86400000) : null;
+  var titles = [];
+  var tRe = /<title[^>]*>(?:<!\[CDATA\[)?([^<\]]+)/gi;
+  var tm;
+  while ((tm = tRe.exec(body)) !== null && titles.length < 20) { var tt = tm[1].trim(); if (tt) titles.push(tt); }
+  if (titles.length > 1) titles = titles.slice(1);
+  var avgTitle = titles.length ? Math.round(titles.reduce(function(a, b) { return a + b.length; }, 0) / titles.length) : 0;
+  var fullContent = /<content:encoded|<content[\s>]/i.test(body);
+  var prios = [];
+  if (daysSince !== null && daysSince > 30) prios.push('P1: last post was ' + daysSince + ' days ago - a silent feed kills subscriber trust faster than no feed, ship something this week');
+  if (!fullContent) prios.push('P1: feed serves excerpts only - full-content feeds get read inside RSS readers and email bridges, excerpts get skipped');
+  if (cadence.indexOf('IRREGULAR') !== -1) prios.push('P1: cadence is irregular - consistency beats frequency, pick a fixed day and hold it');
+  if (avgTitle > 70) prios.push('P2: average title length ' + avgTitle + ' chars - long titles truncate in inboxes and readers, aim 40-60');
+  if (items < 10) prios.push('P2: only ' + items + ' item(s) in the feed window - expose at least 10-20 for new-subscriber binge reading');
+  prios.push('P3: add the feed URL prominently on the site + autodiscovery tag so aggregators index every issue');
+  return {
+    status: 'success',
+    feed_health: 'VALID ' + (isAtom ? 'ATOM' : 'RSS') + ' FEED at ' + url + ': ' + items + ' item(s) in the current window, ' + dates.length + ' with parseable dates.' + (latest ? ' Latest post: ' + latest.toISOString().slice(0, 10) + ' (' + daysSince + ' day(s) ago).' : ''),
+    publishing_cadence: 'REAL CADENCE from actual timestamps: ' + cadence + '.' + (latest ? ' Freshness: last published ' + daysSince + ' day(s) ago.' : ''),
+    content_read: 'CONTENT READ: avg title length ' + avgTitle + ' chars across ' + titles.length + ' titles' + (titles.length ? ' (sample: "' + titles[0].slice(0, 70) + '")' : '') + '. Full content in feed: ' + (fullContent ? 'YES - readers can consume complete issues' : 'NO - excerpt-only') + '.',
+    growth_priorities: prios.join(' | '),
+    data_source: 'Live fetch of ' + url + ' at request time with real RSS/Atom XML parsing - item counts, dates and cadence all computed from the actual feed. Nothing estimated.'
   };
 }
