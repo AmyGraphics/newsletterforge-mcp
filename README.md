@@ -13,11 +13,11 @@
 
 | Tool | What It Does |
 |------|-------------|
-| `autonomous_newsletter_architect` | **Master 1-shot engine** — ingests your situation and synthesizes the complete architecture: stage diagnosis (idea → first 1k → scaling → monetizing), business-model physics (audience-for-business vs sponsorship media vs paid subscriptions), platform stack (beehiiv/Substack/Kit/Ghost), and the 90-day roadmap |
-| `design_positioning_content_engine` | Niche positioning & the promise formula, issue format architecture, voice & writing craft, and the production system — calibrated for weekly flagship, twice-weekly, or daily brief cadences |
-| `engineer_subscriber_growth` | Organic social engines, SEO & evergreen discovery, referral programs & cross-promos, and paid acquisition economics — calibrated for 0→1k, 1k→10k, or 10k+ scale |
-| `monetize_newsletter_revenue` | Sponsorship pricing & pipelines, paid subscription tiers, own-products funnels, and the diversified portfolio strategy — calibrated to list size |
-| `build_retention_analytics_ops` | Welcome sequences, re-engagement & list hygiene, the analytics that matter (cohort retention, revenue per subscriber), and the ops stack — calibrated for solo creators to media teams |
+| `newsletter.architect` | **Master 1-shot engine** — ingests your situation and synthesizes the complete architecture: stage diagnosis (idea → first 1k → scaling → monetizing), business-model physics (audience-for-business vs sponsorship media vs paid subscriptions), platform stack (beehiiv/Substack/Kit/Ghost), and the 90-day roadmap |
+| `newsletter.positioning` | Niche positioning & the promise formula, issue format architecture, voice & writing craft, and the production system — calibrated for weekly flagship, twice-weekly, or daily brief cadences |
+| `newsletter.growth` | Organic social engines, SEO & evergreen discovery, referral programs & cross-promos, and paid acquisition economics — calibrated for 0→1k, 1k→10k, or 10k+ scale |
+| `newsletter.monetization` | Sponsorship pricing & pipelines, paid subscription tiers, own-products funnels, and the diversified portfolio strategy — calibrated to list size |
+| `newsletter.retention` | Welcome sequences, re-engagement & list hygiene, the analytics that matter (cohort retention, revenue per subscriber), and the ops stack — calibrated for solo creators to media teams |
 
 ## ⚡ Quick Start
 
@@ -35,7 +35,7 @@ Add to your MCP client (Claude Desktop, Cursor, Windsurf, Cline…):
 
 Or via Smithery: search **newsletterforge-mcp**.
 
-## 🔴 NEW in v1.1 — Live Tool: `audit_rss_feed_live`
+## 🔴 NEW in v1.1 — Live Tool: `newsletter.audit_feed_live`
 
 Fetches any RSS/Atom feed live (with autodiscovery) and audits the REAL publishing data: item count, actual cadence computed from real timestamps, freshness, and full-content vs excerpt detection.
 
